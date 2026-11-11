@@ -1,4 +1,4 @@
-# WoA Rescue Kit
+# Snapdragon X Rescue Kit
 
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-green.svg)](LICENSE)
 ![Platform: Windows on ARM](https://img.shields.io/badge/platform-Windows%20on%20ARM-blue.svg)
