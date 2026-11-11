@@ -60,8 +60,8 @@ manufacturer.
 ## Build instructions
 
 ```powershell
-git clone https://github.com/sifatrhmn/woa-rescue-kit.git
-cd woa-rescue-kit
+git clone https://github.com/sifatrhmn/Snapdragon-X-rescue-kit.git
+cd Snapdragon-X-rescue-kit
 
 # Format check, lints, tests and an ARM64 release build
 powershell -ExecutionPolicy Bypass -File scripts\check.ps1
