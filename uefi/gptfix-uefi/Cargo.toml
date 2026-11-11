@@ -1,0 +1,20 @@
+[package]
+name = "gptfix-uefi"
+version = "0.1.0"
+edition = "2021"
+description = "UEFI app: adds the Windows partitions to the PZ13 SSD GPT (firmware entries untouched)."
+
+# Standalone: built only for aarch64-unknown-uefi, so it is not a member of the main workspace.
+[workspace]
+
+[dependencies]
+gptfix = { path = "../../crates/gptfix" }
+uefi = { version = "=0.41.0", features = ["alloc", "global_allocator", "panic_handler"] }
+
+[profile.release]
+panic = "abort"
+lto = true
+opt-level = "s"
+
+[profile.dev]
+panic = "abort"

@@ -1,0 +1,8 @@
+[package]
+name = "gptfix"
+version.workspace = true
+edition.workspace = true
+description = "no_std GPT checker/builder that adds the Windows partitions to the PZ13 SSD while keeping its firmware entries byte-identical."
+
+[lib]
+path = "src/lib.rs"

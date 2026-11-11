@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WoA Rescue Kit</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, "Segoe UI", Arial, sans-serif; line-height: 1.6;
+         max-width: 820px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.7rem; margin-bottom: .2em; }
+  h2 { margin-top: 1.8em; border-bottom: 1px solid #8884; padding-bottom: .2em; }
+  code, .k { background: #8882; padding: .1em .4em; border-radius: 4px;
+             font-family: Consolas, monospace; }
+  .step { background: #80808018; border-left: 4px solid #3b82f6;
+          padding: 10px 16px; margin: 10px 0; border-radius: 6px; }
+  .warn { background: #ef444420; border-left: 4px solid #ef4444;
+          padding: 10px 16px; margin: 14px 0; border-radius: 6px; }
+  .ok { color: #16a34a; font-weight: 600; }
+  ol li { margin: .35em 0; }
+  table { border-collapse: collapse; margin: 8px 0; }
+  td, th { border: 1px solid #8886; padding: 4px 10px; text-align: left; }
+  kbd { border: 1px solid #8888; border-bottom-width: 2px; border-radius: 4px;
+        padding: 0 .4em; font-family: Consolas, monospace; }
+</style>
+</head>
+<body>
+
+<h1>WoA Rescue Kit</h1>
+<p>For the <strong>ASUS ProArt PZ13</strong> (Snapdragon / ARM64) tablet when its
+internal SSD shows up as <strong>&ldquo;no disk&rdquo;</strong> in Windows Setup,
+in diskpart, in the ASUS recovery USB and in ASUS Cloud Recovery &mdash; even
+though the BIOS clearly shows the drive and its size.</p>
+<div class="step"><strong>Full guide:</strong> open <a href="PZ13-Complete-Guide.html">PZ13-Complete-Guide.html</a>
+for the step-by-step fix, what a backup saves, the EFI partition explained, the complete PZ13 partition
+table, advice for other Snapdragon devices, and troubleshooting.</div>
+
+<h2>What is wrong (in plain words)</h2>
+<p>These Snapdragon tablets have a special rule built into Windows. On the
+internal drive, Windows looks at the partitions. The PZ13's SSD shipped holding
+<strong>only Qualcomm firmware partitions and no normal Windows partition</strong>.
+When Windows sees a drive like that on a Qualcomm machine, it deliberately
+<strong>hides the whole drive</strong> and refuses to let any Windows tool write
+to it. That is why every installer says &ldquo;no disk&rdquo;.</p>
+<p>Because Windows itself does the hiding, the fix cannot be done from inside
+Windows. It has to be done <strong>earlier, from the firmware (UEFI)</strong>,
+before Windows loads &mdash; and with Secure Boot turned off.</p>
+
+<h2>How this kit fixes it</h2>
+<p>Two USB sticks:</p>
+<table>
+  <tr><th>Stick 1 &mdash; <span class="k">gptfix</span></th>
+      <td>A tiny UEFI tool. It adds the four normal Windows partitions
+          (EFI, MSR, Windows, Recovery) into the free space, while keeping all
+          11 Qualcomm firmware partitions exactly as they are. Once one normal
+          partition exists, Windows stops hiding the drive.</td></tr>
+  <tr><th>Stick 2 &mdash; <span class="k">WinPE installer</span></th>
+      <td>A mini-Windows that boots, un-hides and formats the drive, then
+          installs Windows automatically and reboots.</td></tr>
+</table>
+<p class="ok">This procedure was tested on a real PZ13 on 7 November 2026 and
+completed a clean Windows install successfully.</p>
+
+<h2>Step 1 &mdash; Build the two sticks (on any Windows PC)</h2>
+<ol>
+  <li>Plug in the first USB stick (any size, even 1&nbsp;GB).</li>
+  <li>Right-click <code>Setup-RescueKit.ps1</code> &rarr;
+      <strong>Run with PowerShell</strong>. Approve the Administrator prompt.</li>
+  <li>Follow the questions. It lists only USB drives; you pick one and type
+      <span class="k">ERASE</span> to confirm. Nothing is touched until you do.</li>
+  <li>When asked, plug in and pick the second stick (16&nbsp;GB or larger) for
+      the installer. The big copy takes a few minutes.</li>
+</ol>
+<div class="warn">Each stick you pick is <strong>completely erased</strong>.
+Unplug any USB drives you want to keep before you start.</div>
+
+<h2>Step 2 &mdash; Fix, install, back up or restore (on the PZ13 tablet)</h2>
+<ol>
+  <li>Turn the tablet off. Tap <kbd>F2</kbd> at the ASUS logo to open BIOS/Setup.</li>
+  <li>Set <strong>Secure Boot = OFF</strong>. Save and exit.</li>
+  <li><strong>Only if the SSD shows as empty or hidden</strong> (every tool says
+      &ldquo;no disk&rdquo;): plug in <strong>Stick 1 (gptfix)</strong> only, boot
+      from it (<kbd>F2</kbd> &rarr; boot menu &rarr; the USB), type
+      <span class="k">YES</span>, <kbd>Enter</kbd>; when it says
+      <strong>&ldquo;DONE: verified&rdquo;</strong> press <kbd>Enter</kbd> to restart.
+      <br><em>If it says &ldquo;STOPPED&rdquo;, nothing was written &mdash; take a
+      photo and get help.</em> If your disk is already visible, skip this step.</li>
+  <li>Tap <kbd>F2</kbd>, set <strong>Secure Boot = ON</strong>, save and exit.</li>
+  <li>Plug in <strong>Stick 2 (WinPE)</strong> and boot from it. When it says
+      <em>&ldquo;Type I and press Enter to INSTALL WINDOWS&hellip;&rdquo;</em>, type
+      <span class="k">I</span> and press <kbd>Enter</kbd> &mdash; the rescue menu opens:</li>
+</ol>
+<table>
+  <tr><th>Menu choice</th><th>What it does</th></tr>
+  <tr><td>[1] Install Windows (clean)</td><td>Wipes the Windows partition and
+      installs a fresh Windows. Keeps the 11 firmware partitions.</td></tr>
+  <tr><td>[2] Back up the internal disk</td><td>Saves the disk to a portable drive
+      you plug in &mdash; see below.</td></tr>
+  <tr><td>[3] Restore the internal disk</td><td>Puts a saved backup back, even from
+      a non-boot state &mdash; see below.</td></tr>
+  <tr><td>[4] Rescue tools</td><td>Diagnostics and the Rescue Kit window.</td></tr>
+  <tr><td>[5] Command prompt / [6] Restart</td><td>&nbsp;</td></tr>
+</table>
+
+<h2>Backing up the disk</h2>
+<p>Bring a <strong>second portable drive</strong> (another USB stick or an external
+drive, formatted exFAT or NTFS) with enough free space. Boot Stick 2, choose
+<strong>[2]</strong>, pick that drive, then choose:</p>
+<ul>
+  <li><strong>Full system image</strong> &mdash; your whole Windows (apps, settings,
+      files) plus the boot and firmware partitions. The Windows part is saved
+      compressed, so the backup is about the size of your used space, not the whole
+      disk. Lets you return the laptop to exactly this state.</li>
+  <li><strong>Boot + firmware only</strong> &mdash; just the partition table and the
+      small firmware/EFI/Recovery partitions (about 2&nbsp;GB). Small insurance that
+      restores a bootable structure; Windows is then re-installed clean.</li>
+</ul>
+<p>Each backup is a folder named <code>pz13-image-&lt;number&gt;</code> on the drive.
+Keep the whole folder.</p>
+
+<h2>Restoring the disk (from a non-boot state)</h2>
+<ol>
+  <li>If the SSD was wiped so completely that it shows as empty or hidden, run
+      <strong>Stick 1 (gptfix)</strong> first (Secure Boot OFF), as in Step&nbsp;2.3.</li>
+  <li>Boot <strong>Stick 2</strong>, choose <strong>[3]</strong>, plug in the drive
+      that holds your <code>pz13-image-&hellip;</code> folder, pick it from the list,
+      and type <span class="k">RESTORE</span> when asked.</li>
+  <li>It writes the partition table and partitions back. If the backup was a full
+      image, it also re-applies your Windows and fixes the boot files, then restarts.
+      <span class="ok">Your laptop is back.</span></li>
+</ol>
+
+<h2>The PZ13's partition layout (for reference)</h2>
+<p>Disk: 1,024,209,543,168 bytes (last sector 2,000,409,263). The kit keeps the
+11 firmware partitions and adds 4 Windows partitions:</p>
+<table>
+  <tr><th>Added partition</th><th>Start</th><th>Size</th></tr>
+  <tr><td>EFI (FAT32)</td><td>845 MiB</td><td>260 MiB</td></tr>
+  <tr><td>MSR</td><td>1105 MiB</td><td>16 MiB</td></tr>
+  <tr><td>Windows (NTFS)</td><td>1121 MiB</td><td>~952 GB</td></tr>
+  <tr><td>Recovery</td><td>975738 MiB</td><td>1024 MiB</td></tr>
+</table>
+<p>The gptfix tool is safe to run twice &mdash; if the partitions are already
+there it says so and changes nothing. A copy of the SSD's original partition
+table is kept in <code>2-winpe-stick\boot\woa-backup\</code>.</p>
+
+<h2>A lightweight backup / restore stick (no install image)</h2>
+<p>If you only want <strong>Back up</strong>, <strong>Restore</strong> and
+<strong>Rescue tools</strong> &mdash; not a clean install &mdash; you don't need the
+16&nbsp;GB Stick&nbsp;2. Any <strong>2&nbsp;GB or larger</strong> stick will do:</p>
+<ol>
+  <li>Format the stick as <strong>FAT32</strong> (right-click the stick &rarr;
+      Format &rarr; FAT32 &rarr; Start). It is erased, so save anything on it first.</li>
+  <li>Open <code>2-winpe-stick\boot\</code> in this folder.</li>
+  <li>Select <strong>everything inside</strong> (<kbd>Ctrl</kbd>+<kbd>A</kbd>) and copy it
+      to the <strong>top level of the stick</strong> &mdash; so the stick ends up with
+      <code>EFI</code>, <code>sources</code>, <code>woa-install.exe</code>,
+      <code>woa-menu.cmd</code> and <code>woa-rescue.tag</code> at its root.</li>
+</ol>
+<p>Boot it on the PZ13 (Secure Boot can stay <strong>on</strong>) and use
+<strong>[2]</strong> / <strong>[3]</strong>, with a second drive plugged in to hold or
+read the backup. A clean <em>install</em> still needs the full Stick&nbsp;2, because the
+Windows image lives on its data partition.</p>
+<div class="warn"><strong>Do not</strong> just copy a single <code>.iso</code> file onto a
+stick, and do not use a bare boot-only ISO: WinPE looks for <code>woa-rescue.tag</code>
+and <code>woa-install.exe</code> at the stick's root, and if they aren't there the backup
+and restore tools show no drives. Always copy the <em>contents</em> of
+<code>2-winpe-stick\boot\</code>.</div>
+
+<h2>What is in this folder</h2>
+<table>
+  <tr><td><code>Setup-RescueKit.ps1</code></td><td>The one-click USB builder.</td></tr>
+  <tr><td><code>1-gptfix-stick\</code></td><td>Stick 1 payload (the UEFI fix tool).</td></tr>
+  <tr><td><code>2-winpe-stick\boot\</code></td><td>Stick 2 boot files: WinPE, the
+      menu and the Install / Back&nbsp;up / Restore scripts, and
+      <code>woa-install.exe</code> (native ARM64).</td></tr>
+  <tr><td><code>2-winpe-stick\data\win\</code></td><td>The clean Windows image (install.wim).</td></tr>
+  <tr><td><code>2-winpe-stick\data\drivers\</code></td><td>Qualcomm drivers injected during install.</td></tr>
+</table>
+
+</body>
+</html>

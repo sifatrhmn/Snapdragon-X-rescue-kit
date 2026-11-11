@@ -1,0 +1,9 @@
+# WinPE has no Visual C++ runtime (VCRUNTIME140.dll), so every binary we place in the
+# image must link the C runtime statically. Without this, rescue.exe exits silently in
+# WinPE (seen on the ProArt PZ13, 2026-11-06). Applied to x64 too so woa-builder runs on
+# hosts without the VC++ redistributable.
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

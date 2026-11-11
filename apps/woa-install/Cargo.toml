@@ -1,0 +1,16 @@
+[package]
+name = "woa-install"
+version.workspace = true
+edition.workspace = true
+description = "Guarded preparation of the ProArt PZ13 internal SSD for a clean Windows install (runs in WinPE)."
+
+[dependencies]
+nvme-probe = { path = "../nvme-probe" }
+
+[dev-dependencies]
+winstorage = { path = "../../crates/winstorage" }
+gptfix = { path = "../../crates/gptfix" }
+
+[[bin]]
+name = "woa-install"
+path = "src/main.rs"

@@ -1,0 +1,30 @@
+[package]
+name = "woa-builder"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+thiserror = "2"
+diskcore = { path = "../../crates/diskcore" }
+drivers = { path = "../../crates/drivers" }
+winstorage = { path = "../../crates/winstorage" }
+
+[dependencies.windows]
+version = "0.58"
+features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Registry",
+    "Win32_System_Threading",
+]
+
+[dev-dependencies]
+tempfile = "3"
+diskcore = { path = "../../crates/diskcore", features = ["fixtures"] }
+
+[[bin]]
+name = "woa-builder"
+path = "src/main.rs"

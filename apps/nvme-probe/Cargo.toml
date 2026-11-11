@@ -1,0 +1,13 @@
+[package]
+name = "nvme-probe"
+version.workspace = true
+edition.workspace = true
+description = "Read-only NVMe and disk diagnostics for WinPE (prints a text report)."
+
+[lib]
+name = "nvme_parse"
+path = "src/parse.rs"
+
+[[bin]]
+name = "nvme-probe"
+path = "src/main.rs"

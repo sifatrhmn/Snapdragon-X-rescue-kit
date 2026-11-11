@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snapdragon No-Disk Guide</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d1f23; --muted: #5b616b; --line: #d9dce1;
+    --card: #f5f6f8; --accent: #2563eb; --ok: #15803d; --warn-bg: #fef3c7;
+    --warn-line: #d97706; --bad-bg: #fee2e2; --bad-line: #dc2626; --code: #eef0f3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171a; --fg: #e6e8eb; --muted: #a1a7b0; --line: #33373d;
+      --card: #1e2126; --accent: #60a5fa; --ok: #4ade80; --warn-bg: #3a2e12;
+      --warn-line: #f59e0b; --bad-bg: #3b1717; --bad-line: #f87171; --code: #262a30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171a; --fg: #e6e8eb; --muted: #a1a7b0; --line: #33373d;
+    --card: #1e2126; --accent: #60a5fa; --ok: #4ade80; --warn-bg: #3a2e12;
+    --warn-line: #f59e0b; --bad-bg: #3b1717; --bad-line: #f87171; --code: #262a30;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--fg); margin: 0;
+         font: 16px/1.6 system-ui, "Segoe UI", Arial, sans-serif; }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.8rem; line-height: 1.25; margin: .2em 0 .3em; }
+  h2 { font-size: 1.35rem; margin-top: 2.2em; padding-bottom: .25em; border-bottom: 1px solid var(--line); }
+  h3 { font-size: 1.1rem; margin-top: 1.6em; }
+  a { color: var(--accent); }
+  p.lede { color: var(--muted); font-size: 1.05rem; margin-top: 0; }
+  code, kbd { font-family: Consolas, "Cascadia Mono", monospace; font-size: .9em; }
+  code { background: var(--code); padding: .1em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 .35em; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; margin: 14px 0; }
+  .warn { background: var(--warn-bg); border-left: 4px solid var(--warn-line); border-radius: 6px; padding: 10px 16px; margin: 14px 0; }
+  .bad  { background: var(--bad-bg);  border-left: 4px solid var(--bad-line);  border-radius: 6px; padding: 10px 16px; margin: 14px 0; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .tbl { overflow-x: auto; margin: 10px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: var(--card); }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.g { font-family: Consolas, monospace; font-size: .8rem; overflow-wrap: anywhere; }
+  nav.toc { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; }
+  nav.toc ol { margin: .4em 0; padding-left: 1.3em; }
+  ol li, ul li { margin: .3em 0; }
+  .muted { color: var(--muted); }
+  details { margin: 10px 0; }
+  summary { cursor: pointer; font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Snapdragon laptop says “no drive”: the complete guide</h1>
+<p class="lede">How to fix it, back it up and understand it, using the ASUS ProArt PZ13
+(Snapdragon X, ARM64) as the worked example. Written for ordinary users; the technical
+detail is in clearly marked sections you can skip.</p>
+
+<div class="box">
+<strong>In one paragraph:</strong> Your laptop's settings screen (the BIOS) shows the SSD, but Windows
+Setup, <code>diskpart</code>, the ASUS recovery USB and ASUS Cloud Recovery all say there is no
+drive. On Snapdragon machines, Windows deliberately <em>hides</em> an internal SSD that holds only
+Qualcomm firmware partitions and no normal Windows partition. Nothing inside Windows can un-hide it,
+because Windows itself is doing the hiding. The fix is a small tool that runs <em>before</em> Windows
+starts and adds the normal Windows partitions back, leaving the firmware untouched. After that, Windows
+can see the drive and installs normally.
+</div>
+
+<nav class="toc"><strong>Contents</strong>
+<ol>
+  <li><a href="#is-it-you">Is this your problem?</a></li>
+  <li><a href="#why">Why it happens</a></li>
+  <li><a href="#need">What you need</a></li>
+  <li><a href="#fix">The fix, step by step</a></li>
+  <li><a href="#backup">Back up and restore: what can be saved</a></li>
+  <li><a href="#efi">The EFI system partition explained</a></li>
+  <li><a href="#table">The PZ13 partition table in full</a></li>
+  <li><a href="#other">Other Snapdragon devices</a></li>
+  <li><a href="#trouble">Troubleshooting</a></li>
+  <li><a href="#keep">What to keep safe</a></li>
+  <li><a href="#glossary">Glossary</a></li>
+</ol></nav>
+
+<!-- ============================================================ -->
+<h2 id="is-it-you">1. Is this your problem?</h2>
+<p>It very probably is if <strong>all</strong> of these are true:</p>
+<ul>
+  <li>The laptop or tablet has a <strong>Qualcomm Snapdragon</strong> processor (Snapdragon X Elite / X Plus,
+      8cx and similar). Windows calls these “ARM64” PCs.</li>
+  <li>The <strong>BIOS / UEFI setup screen</strong> (on ASUS, tap <kbd>F2</kbd> at power-on) shows the SSD and its size.</li>
+  <li><strong>Windows Setup</strong> says “We couldn't find any drives”, and no driver you load fixes it.</li>
+  <li><strong><code>diskpart</code> → <code>list disk</code></strong> in a recovery or installer command prompt shows no internal disk,
+      or the disk cannot be cleaned, formatted or written to.</li>
+  <li>The maker's own recovery tools (for ASUS: the recovery USB and Cloud Recovery) also see no storage.</li>
+</ul>
+<p>It usually starts after the Windows partitions were deleted, for example with a partition tool or a
+reinstall that went wrong. The small Qualcomm firmware partitions survive, because they are protected,
+and that combination is what triggers the lock.</p>
+<div class="warn"><strong>Not this problem</strong> if the BIOS does <em>not</em> show the SSD at all. That points to hardware
+(a loose or failed SSD), and nothing in this guide will help.</div>
+
+<!-- ============================================================ -->
+<h2 id="why">2. Why it happens</h2>
+<p>Snapdragon PCs keep some of their own firmware on the main SSD, in small partitions with names like
+<code>NHLOS</code> and <code>UpdateCapsule</code>. Windows protects these: on a Qualcomm machine, it treats any
+partition type it does not recognise as a “service” partition that ordinary programs must not touch.</p>
+<p>The trap is a second rule. If an internal disk holds service partitions and <strong>no normal partition at all</strong>,
+Windows hides the <em>whole disk</em> and refuses every attempt to write to it. Setup, diskpart, the ASUS
+recovery image and Cloud Recovery all run on Windows, so all of them are blocked in the same way.</p>
+<p>The way out is to write the partition table from <strong>outside Windows</strong>, from the UEFI firmware before
+Windows loads. Add even one normal partition and Windows stops hiding the disk. The fix tool adds the four
+standard Windows partitions in one go.</p>
+
+<details class="box"><summary>Technical detail (for the curious)</summary>
+<p>This was confirmed by disassembling the ARM64 <code>partmgr.sys</code> (Windows 11 26100). The partition manager
+reads the SMBIOS table, sees “Qualcomm”, and checks the licence value
+<code>Kernel-OneCore-DeviceFamilyID</code>. On a non-removable disk it marks partitions of unknown type as
+service partitions. When a disk has service partitions but no normal ones, it sets an internal flag
+(0x2000) that surfaces as <code>DISK_ATTRIBUTE_HIDDEN</code> (0x4), and it denies every write-type open, for
+data <em>and</em> for attribute changes. That is why even clearing the “hidden” attribute fails with
+<em>access denied</em> (Win32 error 5).</p>
+<p>Ruled out along the way: a missing NVMe driver (the SSD uses Windows' inbox <code>stornvme</code>, the same
+stack ASUS's own recovery image uses), the Qualcomm <code>QcSOCPartition</code> driver, and Storage Spaces
+(both were disabled with no change). None of the 11 firmware type GUIDs are hard-coded in partmgr;
+the rule is generic.</p>
+</details>
+
+<!-- ============================================================ -->
+<h2 id="need">3. What you need</h2>
+<ul>
+  <li>Another Windows PC to prepare the USB sticks.</li>
+  <li><strong>Stick 1</strong>, any size (even 1 GB): the <em>gptfix</em> tool.</li>
+  <li><strong>Stick 2</strong>, 16 GB or larger: the installer (a mini-Windows called WinPE, plus the Windows image
+      and the Qualcomm drivers).</li>
+  <li>Optional: a <strong>third drive</strong> (USB stick or external disk, exFAT or NTFS, at least 4 GB free) for backups.</li>
+  <li>The <strong>WoA Rescue Kit</strong> folder: <code>Setup-RescueKit.ps1</code>, <code>1-gptfix-stick\</code> and
+      <code>2-winpe-stick\</code>.</li>
+  <li>About 45 minutes, most of it waiting.</li>
+</ul>
+<div class="bad"><strong>Each stick you prepare is completely erased.</strong> Copy anything you want off it first.</div>
+
+<!-- ============================================================ -->
+<h2 id="fix">4. The fix, step by step</h2>
+
+<h3>4.1 Build the two sticks (on the other PC)</h3>
+<ol>
+  <li>Unplug every USB drive you care about. Plug in Stick 1.</li>
+  <li>In the WoA Rescue Kit folder, right-click <code>Setup-RescueKit.ps1</code> → <strong>Run with PowerShell</strong>,
+      and approve the administrator prompt.</li>
+  <li>It lists only USB disks. Type the disk number, then type <code>ERASE</code> in capitals to confirm. Nothing is
+      written until you do.</li>
+  <li>When asked, plug in Stick 2 and repeat. Copying the Windows image takes a few minutes.</li>
+</ol>
+
+<h3>4.2 Un-hide the SSD (Stick 1, Secure Boot OFF)</h3>
+<ol>
+  <li>Turn the tablet off. Power it on and tap <kbd>F2</kbd> to open the BIOS.</li>
+  <li>Set <strong>Secure Boot = Disabled</strong>. Save and exit. (The gptfix tool is not signed by Microsoft, so
+      Secure Boot would refuse to run it.)</li>
+  <li>Plug in <strong>Stick 1 only</strong> and boot from it (<kbd>F2</kbd> → boot menu → the USB).</li>
+  <li>The tool lists the 11 firmware partitions it found and the 4 Windows partitions it will add
+      (EFI, MSR, Windows, Recovery). Check that it shows the <em>PZ13 SSD size</em> line.</li>
+  <li>Type <code>YES</code> and press <kbd>Enter</kbd>. Wait for
+      <strong class="ok">DONE: verified. Both partition table copies are valid…</strong>, then press <kbd>Enter</kbd> to restart.</li>
+  <li>Tap <kbd>F2</kbd> again and set <strong>Secure Boot = Enabled</strong>. Save and exit.</li>
+</ol>
+<div class="box"><strong>gptfix is built to be safe.</strong> It writes nothing and says <em>STOPPED</em> unless it finds
+<strong>exactly</strong> the PZ13 disk size, a valid protective MBR, two matching and checksum-correct partition
+tables, the 11 PZ13 firmware partitions in their exact places, and either nothing else (it then adds the
+four Windows partitions) or exactly its own four (it then says they are already there). If someone has
+since repartitioned Windows, for example split <code>C:</code> into two drives, it stops rather than overwrite
+that.</div>
+
+<h3>4.3 Install Windows (Stick 2, Secure Boot ON)</h3>
+<ol>
+  <li>Unplug Stick 1, plug in Stick 2, and boot from it.</li>
+  <li>The <strong>rescue menu</strong> opens on its own. (On an older stick it first asks
+      “Type I and press Enter…”: type <code>I</code>.)</li>
+  <li>Choose <strong>[1] Install Windows (clean)</strong> and type <code>INSTALL</code> when asked. It first saves a copy of
+      the disk's partition table to <code>woa-backup\</code> on the stick, then formats the EFI, Windows and Recovery
+      partitions, applies Windows, writes the boot files, sets up the recovery environment, adds the Qualcomm
+      drivers and restarts.</li>
+  <li>Remove the stick when it restarts. Windows finishes its first-start set-up.</li>
+</ol>
+<p class="ok">This was done on a real PZ13 on 7 November 2026 and completed a working clean install.</p>
+
+<h3>4.4 The rescue menu (Stick 2)</h3>
+<div class="tbl"><table>
+  <tr><th>Choice</th><th>What it does</th></tr>
+  <tr><td>[1] Install Windows (clean)</td><td>Wipes the Windows partition and installs fresh Windows. Keeps the firmware partitions.</td></tr>
+  <tr><td>[2] Back up the internal disk</td><td>Saves the disk to another drive you plug in (see <a href="#backup">section 5</a>).</td></tr>
+  <tr><td>[3] Restore the internal disk</td><td>Puts a saved backup back, even when the laptop no longer boots.</td></tr>
+  <tr><td>[4] Rescue tools</td><td>Diagnostics. <span class="muted">(Its disk list cannot see a hidden Snapdragon SSD; use [2]/[3] for real work.)</span></td></tr>
+  <tr><td>[5] Command prompt · [6] Restart · [7] Shut down</td><td>After a backup or restore you are also offered Shut down, Restart or Back to menu.</td></tr>
+</table></div>
+<p>Every question in the menu can be cancelled by pressing <kbd>Enter</kbd> on a blank line. Each time the
+stick starts, it also writes a hardware log to <code>logs\boot-&lt;date&gt;.txt</code> on the stick, which is useful if
+you need help.</p>
+
+<!-- ============================================================ -->
+<h2 id="backup">5. Back up and restore: what can be saved</h2>
+<p>Once the laptop works, make a backup. If the disk is ever wiped or the firmware partitions are damaged,
+it lets you put the exact structure back from a non-booting state.</p>
+
+<h3>5.1 The two kinds of backup</h3>
+<div class="tbl"><table>
+  <tr><th></th><th>Boot + firmware only</th><th>Full system image</th></tr>
+  <tr><td>Size</td><td class="n">≈ 2.1 GB</td><td>≈ 2 GB + the used space of <code>C:</code> (compressed)</td></tr>
+  <tr><td>Time</td><td>2–5 minutes</td><td>10–40 minutes or more, depending on how full <code>C:</code> is</td></tr>
+  <tr><td>Partition table (both copies)</td><td>✔</td><td>✔</td></tr>
+  <tr><td>11 firmware partitions</td><td>✔ exact copies</td><td>✔ exact copies</td></tr>
+  <tr><td>EFI, MSR, Recovery</td><td>✔ exact copies</td><td>✔ exact copies</td></tr>
+  <tr><td>Windows <code>C:</code> (apps, settings, files)</td><td>✘ reinstall clean after restore</td><td>✔ as a compressed <code>windows.wim</code></td></tr>
+  <tr><td>Any <em>extra</em> data partition (e.g. a <code>D:</code> you made by splitting <code>C:</code>)</td><td>✘</td><td>✘, so copy those files yourself</td></tr>
+</table></div>
+<div class="warn"><strong>Neither backup includes a second data drive.</strong> On the PZ13 used for this guide, Windows'
+partition was later split into a ~552 GB <code>C:</code> and a ~400 GB data drive. The backup records where that
+drive sits, so a restore recreates it, but <em>empty</em>. Keep your own copy of the files on it.</div>
+
+<h3>5.2 What exactly is saved</h3>
+<p>Each backup is a folder named <code>pz13-image-&lt;number&gt;</code>. This is the real one from the PZ13 (boot +
+firmware only, 2.1 GB):</p>
+<div class="tbl"><table>
+  <tr><th>File</th><th>Size</th><th>What it is</th><th>Can it be recreated without the backup?</th></tr>
+  <tr><td><code>head-64k.bin</code>, <code>tail-64k.bin</code></td><td class="n">64 KiB each</td><td>The first and last 64 KiB of the disk: protective MBR and both GPT copies</td><td>Partly. gptfix can add the four standard Windows entries, but not a custom layout.</td></tr>
+  <tr><td><code>part-00</code> … <code>part-10-*.img</code></td><td class="n">≈ 845 MiB total</td><td>The 11 Qualcomm firmware partitions, byte for byte</td><td><strong>No.</strong> Windows installers do not recreate them. This backup is the only copy you control.</td></tr>
+  <tr><td><code>part-11-EFI_system_partition.img</code></td><td class="n">260 MiB</td><td>The boot partition (see <a href="#efi">section 6</a>)</td><td>Mostly. <code>bcdboot</code> rebuilds the boot files, but not the firmware's capsule copy.</td></tr>
+  <tr><td><code>part-12-Microsoft_reserved_partition.img</code></td><td class="n">16 MiB</td><td>Microsoft Reserved: empty space Windows keeps for itself</td><td>Yes, it is blank.</td></tr>
+  <tr><td><code>part-15-part.img</code></td><td class="n">1024 MiB</td><td>The Recovery partition (Windows Recovery Environment)</td><td>Yes, a clean install recreates it.</td></tr>
+  <tr><td><code>manifest.txt</code></td><td class="n">≈ 2.5 KB</td><td>The list of every partition: offset, size, type, ID, attributes, and which file holds it</td><td>Needed by the restore.</td></tr>
+  <tr><td><code>windows.wim</code> <span class="muted">(full image only)</span></td><td class="n">varies</td><td><code>C:</code> captured with DISM, compressed, used space only</td><td>Your apps and files: no.</td></tr>
+</table></div>
+
+<h3>5.3 How to back up</h3>
+<ol>
+  <li>Boot Stick 2. Plug in the backup drive. It must not be the rescue stick.</li>
+  <li>Choose <strong>[2] Back up the internal disk</strong>, type the backup drive's letter, then choose
+      <strong>[1] Full</strong> or <strong>[2] Boot + firmware only</strong>.</li>
+  <li>Each partition shows a live progress line such as <code>NHLOS 100% (120 / 120 MiB)</code>. Large data partitions
+      are reported as <em>skipped</em>; that is expected.</li>
+  <li>Wait for <strong class="ok">BACKUP COMPLETE</strong>, then choose Shut down, Restart or Back to menu.</li>
+  <li>Keep the whole <code>pz13-image-…</code> folder, ideally in two places.</li>
+</ol>
+
+<h3>5.4 How to restore (even when nothing boots)</h3>
+<ol>
+  <li>If every tool says “no drive” again, run Stick 1 (gptfix) first, with Secure Boot OFF. A wiped disk is
+      hidden, and nothing can write to it until it is un-hidden.</li>
+  <li>Boot Stick 2, choose <strong>[3] Restore</strong>, plug in the backup drive, pick the backup from the list, and type
+      <code>RESTORE</code>.</li>
+  <li>It writes back the exact partition table and every saved partition. If the backup holds
+      <code>windows.wim</code>, it also re-applies Windows and repairs the boot files.</li>
+  <li>For a boot + firmware backup, choose <strong>[1] Install Windows</strong> afterwards to put Windows back.</li>
+</ol>
+<div class="warn"><strong>BitLocker / Device Encryption:</strong> the PZ13's EFI partition contains a BitLocker folder, so
+encryption may be switched on. A restore or firmware change can make Windows ask for the
+<strong>BitLocker recovery key</strong>. Find it now at <code>aka.ms/myrecoverykey</code> (your Microsoft account)
+and write it down.</div>
+
+<!-- ============================================================ -->
+<h2 id="efi">6. The EFI system partition explained</h2>
+<p>The <strong>EFI system partition</strong> (ESP) is a small FAT32 partition that the firmware reads when the
+laptop powers on. It holds the programs that start Windows, and the list (BCD) of what to start. Without
+it, Windows is still on the disk but nothing starts it.</p>
+<p>On the PZ13 it is 260 MiB, of which about 104 MB is used, in 117 files. Its contents, taken from the real backup:</p>
+<div class="tbl"><table>
+  <tr><th>Path</th><th>Size</th><th>Purpose</th></tr>
+  <tr><td><code>\EFI\Microsoft\Boot\bootmgfw.efi</code></td><td class="n">3.1 MB</td><td>Windows Boot Manager, the program the firmware starts</td></tr>
+  <tr><td><code>\EFI\Microsoft\Boot\BCD</code></td><td class="n">28 KB</td><td>Boot Configuration Data: which Windows to start, where it is, and the recovery entries</td></tr>
+  <tr><td><code>\EFI\Boot\bootaa64.efi</code></td><td class="n">3.1 MB</td><td>Fallback copy of the boot manager, the file every ARM64 firmware looks for by default</td></tr>
+  <tr><td><code>\EFI\Microsoft\Boot\bootmgr.efi</code>, <code>SecureBootRecovery.efi</code></td><td class="n">3.1 MB, 0.2 MB</td><td>Boot manager variants, and a tool that repairs Secure Boot settings</td></tr>
+  <tr><td><code>\EFI\Microsoft\Boot\CIPolicies\</code>, <code>winsipolicy.p7b</code></td><td class="n">small</td><td>Code-integrity policies: rules about which drivers may load at boot</td></tr>
+  <tr><td><code>\EFI\Microsoft\Boot\Fonts\</code>, <code>Resources\</code>, language folders</td><td class="n">≈ 15 MB</td><td>Boot-screen fonts and translated text</td></tr>
+  <tr><td><code>\EFI\Microsoft\Boot\kd*.dll</code></td><td class="n">≈ 1.6 MB</td><td>Kernel-debugger transports (unused in normal use)</td></tr>
+  <tr><td><code>\EFI\Microsoft\Boot\BOOTSTAT.DAT</code>, <code>boot.stl</code></td><td class="n">small</td><td>Boot status (used to detect failed starts), and a certificate trust list</td></tr>
+  <tr><td><code>\EFI\Microsoft\Recovery\BCD</code></td><td class="n">16 KB</td><td>Boot data for the recovery environment</td></tr>
+  <tr><td><code>\Persisted_Capsules.bin</code></td><td class="n">70 MiB</td><td>Kept by the <strong>firmware</strong>, not Windows: a stored firmware-update capsule. It is exactly the size of the <code>UpdateCapsule</code> firmware partition.</td></tr>
+  <tr><td><code>\System Volume Information\FveDecryptedVolumeFolder</code></td><td class="n">folder</td><td>Created by BitLocker (“FVE” = full-volume encryption)</td></tr>
+</table></div>
+<p><strong>If the ESP is damaged:</strong> Windows' boot files can be rebuilt from Stick 2's command prompt with
+<code>bcdboot W:\Windows /s S: /f UEFI</code> (W: = Windows, S: = the ESP). That does <em>not</em> bring back
+<code>Persisted_Capsules.bin</code>, and that is one reason to restore the ESP from your backup instead.</p>
+<div class="box"><strong>Secure Boot and signatures:</strong> Snapdragon X firmware (2024 onwards) trusts boot files signed
+by the newer <em>Windows UEFI CA 2023</em> certificate, and the PZ13 also still accepts the older <em>PCA 2011</em>
+one. The rescue stick's WinPE is signed with the 2023 certificate, so it boots with Secure Boot on. Only the
+gptfix tool needs Secure Boot off.</div>
+
+<!-- ============================================================ -->
+<h2 id="table">7. The PZ13 partition table in full</h2>
+<div class="box">
+<strong>Disk:</strong> WD PC SN740 (SDDPTQD-1T00), NVMe, M.2 2230 ·
+<strong>1,024,209,543,168 bytes</strong> (953.9 GiB) · 2,000,409,264 sectors of 512 bytes ·
+partitions aligned to 1 MiB (2,048 sectors).<br>
+<strong>Layout of the partition table itself:</strong> LBA 0 protective MBR · LBA 1 GPT header ·
+LBA 2–33 the 128 entries (128 bytes each) · first usable LBA 34 · last usable LBA 2,000,409,230 ·
+backup entries LBA 2,000,409,231–2,000,409,262 · backup header LBA 2,000,409,263 (the last sector).
+</div>
+
+<h3>7.1 The 11 firmware partitions (never change these)</h3>
+<p class="muted">The “role” column is our best understanding. Qualcomm and ASUS do not publish what each one holds.</p>
+<div class="tbl"><table>
+  <tr><th>#</th><th>Name</th><th>Start MiB</th><th>Size MiB</th><th>Start LBA</th><th>Type GUID</th><th>Role</th></tr>
+  <tr><td>1</td><td>ToolsFv</td><td class="n">1</td><td class="n">1</td><td class="n">2,048</td><td class="g">97745ABA-135A-44C3-9ADC-05616173C24C</td><td>A UEFI firmware volume (“FV”) for tools</td></tr>
+  <tr><td>2</td><td>LogFs</td><td class="n">2</td><td class="n">16</td><td class="n">4,096</td><td class="g">BC0330EB-3410-4951-A617-03898DBE3372</td><td>Small filesystem where the firmware writes logs</td></tr>
+  <tr><td>3</td><td>EnterpriseFV</td><td class="n">18</td><td class="n">1</td><td class="n">36,864</td><td class="g">B7524B2D-0A91-49A2-AA5E-BDA266699D49</td><td>Firmware volume (enterprise features; undocumented)</td></tr>
+  <tr><td>4</td><td>ToolsFv_BACKUP</td><td class="n">19</td><td class="n">1</td><td class="n">38,912</td><td class="g">A3381699-350C-465E-BD5D-FA3AB901A39A</td><td>Backup copy of ToolsFv</td></tr>
+  <tr><td>5</td><td>UpdateCapsule</td><td class="n">20</td><td class="n">70</td><td class="n">40,960</td><td class="g">C80325BA-7EC2-4A30-B2F7-18F646086185</td><td>Staging area for BIOS/firmware update capsules</td></tr>
+  <tr><td>6</td><td>NHLOS</td><td class="n">90</td><td class="n">120</td><td class="n">184,320</td><td class="g">FA4CBE53-31B5-4C23-9C1E-A01FEB966856</td><td>“Non-HLOS” firmware: code for the chip's helper processors (not the main OS)</td></tr>
+  <tr><td>7</td><td>core_nhlos_a</td><td class="n">210</td><td class="n">120</td><td class="n">430,080</td><td class="g">6690B4CE-70E9-4817-B9F1-25D64D888357</td><td>Core non-HLOS firmware, slot “A”</td></tr>
+  <tr><td>8</td><td>quantumsdk</td><td class="n">330</td><td class="n">1</td><td class="n">675,840</td><td class="g">AA9A5C4C-4F1F-7D3A-014A-22BD33BF7191</td><td>Undocumented</td></tr>
+  <tr><td>9</td><td>quantumfv</td><td class="n">331</td><td class="n">1</td><td class="n">677,888</td><td class="g">80C23C26-C3F9-4A19-BB38-1E457DACEB09</td><td>Undocumented firmware volume</td></tr>
+  <tr><td>10</td><td>catecontentfv</td><td class="n">332</td><td class="n">1</td><td class="n">679,936</td><td class="g">E12D830B-7F62-4F0B-B48A-8178C5BF3AC1</td><td>Undocumented firmware volume</td></tr>
+  <tr><td>11</td><td>logdump</td><td class="n">333</td><td class="n">512</td><td class="n">681,984</td><td class="g">5AF80809-AABB-4943-9168-CDFC38742598</td><td>Space for crash dumps</td></tr>
+</table></div>
+<p>All 11 carry attributes <code>0x8000000000000001</code>: bit 0 = required by the platform, bit 63 = never give
+it a drive letter. The firmware area ends at <strong>845 MiB</strong> (LBA 1,730,560).</p>
+
+<h3>7.2 Windows partitions as gptfix creates them</h3>
+<div class="tbl"><table>
+  <tr><th>#</th><th>Name</th><th>Start MiB</th><th>Size MiB</th><th>Start LBA</th><th>Type GUID</th><th>Format / attributes</th></tr>
+  <tr><td>12</td><td>EFI system partition</td><td class="n">845</td><td class="n">260</td><td class="n">1,730,560</td><td class="g">C12A7328-F81F-11D2-BA4B-00A0C93EC93B</td><td>FAT32 · 0</td></tr>
+  <tr><td>13</td><td>Microsoft reserved (MSR)</td><td class="n">1,105</td><td class="n">16</td><td class="n">2,263,040</td><td class="g">E3C9E316-0B5C-4DB8-817D-F92DF00215AE</td><td>none · 0</td></tr>
+  <tr><td>14</td><td>Windows (basic data)</td><td class="n">1,121</td><td class="n">974,617</td><td class="n">2,295,808</td><td class="g">EBD0A0A2-B9E5-4433-87C0-68B6B72699C7</td><td>NTFS (≈ 951.8 GB) · 0</td></tr>
+  <tr><td>15</td><td>Recovery</td><td class="n">975,738</td><td class="n">1,024</td><td class="n">1,998,311,424</td><td class="g">DE94BBA4-06D1-4D40-A16A-BFD50179D6AC</td><td>NTFS · 0x8000000000000001</td></tr>
+</table></div>
+
+<h3>7.3 The same disk later (8 November 2026), as recorded by the backup</h3>
+<p>After installing, Windows' partition was split into two drives. Everything else is identical to 7.2:</p>
+<div class="tbl"><table>
+  <tr><th>#</th><th>Name</th><th>Start MiB</th><th>Size MiB</th><th>Start LBA</th><th>In the backup?</th></tr>
+  <tr><td>1–11</td><td>firmware (as 7.1)</td><td class="n">1</td><td class="n">844</td><td class="n">2,048</td><td>✔ imaged</td></tr>
+  <tr><td>12</td><td>EFI system partition</td><td class="n">845</td><td class="n">260</td><td class="n">1,730,560</td><td>✔ imaged</td></tr>
+  <tr><td>13</td><td>MSR</td><td class="n">1,105</td><td class="n">16</td><td class="n">2,263,040</td><td>✔ imaged</td></tr>
+  <tr><td>14</td><td>Basic data (<code>C:</code>, Windows)</td><td class="n">1,121</td><td class="n">565,017</td><td class="n">2,295,808</td><td>position only (full image: <code>windows.wim</code>)</td></tr>
+  <tr><td>15</td><td>Basic data (second drive)</td><td class="n">566,138</td><td class="n">409,599</td><td class="n">1,159,450,624</td><td>position only</td></tr>
+  <tr><td>16</td><td>Recovery</td><td class="n">975,738</td><td class="n">1,024</td><td class="n">1,998,311,424</td><td>✔ imaged</td></tr>
+</table></div>
+<p class="muted">565,017 + 409,599 = 974,616 MiB, one MiB less than the original single Windows partition.
+In the backup's file names the partitions are numbered from 0, so “#12” here is <code>part-11-…</code>.</p>
+
+<!-- ============================================================ -->
+<h2 id="other">8. Other Snapdragon devices</h2>
+<p><strong>The cause applies to every Snapdragon Windows PC:</strong> an internal disk with only firmware partitions is
+hidden, and adding a normal partition from outside Windows releases it. <strong>The PZ13 numbers do not apply
+anywhere else.</strong> Other models have different firmware partitions, sizes and positions.</p>
+<div class="bad"><strong>Do not</strong> run the PZ13 gptfix on another model. It is designed to stop on any other disk, but
+nothing about another device's layout has been tested. Do not delete, “clean” or reformat the firmware
+partitions on any Snapdragon PC either: Windows cannot recreate them.</div>
+<p>To adapt the method to another device, someone technical needs to:</p>
+<ol>
+  <li>Read the device's real partition table (both GPT copies) without writing anything, and save a copy.</li>
+  <li>Note where the firmware partitions end, and plan EFI (≥ 260 MiB), MSR (16 MiB), Windows and Recovery
+      (1 GiB, attributes <code>0x8000000000000001</code>) in the free space after them, aligned to 1 MiB.</li>
+  <li>Write the new entries from UEFI (not from Windows), updating both GPT copies and their checksums, and
+      leaving every existing firmware entry byte-identical.</li>
+  <li>Test on a virtual disk of exactly the same size first. That is how the PZ13 tool was rehearsed before
+      it touched real hardware.</li>
+</ol>
+<p>The source code for the PZ13 tools (gptfix, the installer and the backup tool) is in the WoA Rescue Kit
+project and can serve as a template.</p>
+
+<!-- ============================================================ -->
+<h2 id="trouble">9. Troubleshooting</h2>
+<div class="tbl"><table>
+  <tr><th>You see</th><th>Why</th><th>What to do</th></tr>
+  <tr><td>“We couldn't find any drives” / diskpart shows no disk</td><td>The disk is hidden (section 2)</td><td>Run Stick 1 (gptfix), then install</td></tr>
+  <tr><td>Stick 1 does not appear, or will not start</td><td>Secure Boot is on</td><td>Turn Secure Boot off just for Stick 1</td></tr>
+  <tr><td>gptfix says <em>STOPPED</em></td><td>The disk is not exactly the expected PZ13 layout</td><td>Nothing was written. Take a photo of the screen and get help; do not force it</td></tr>
+  <tr><td>gptfix says the partitions are already there</td><td>It has already been fixed</td><td>Nothing to do; go to Stick 2</td></tr>
+  <tr><td>“Rescue Kit … No disks found”</td><td>The older graphical tool cannot list a Snapdragon SSD</td><td>Use the menu's [1]–[3]. Updated sticks no longer open that window at start-up</td></tr>
+  <tr><td>“… was unexpected at this time” after typing I</td><td>Old scripts on the stick</td><td>Re-copy <code>2-winpe-stick\boot\</code> from the latest kit</td></tr>
+  <tr><td>Backup sits on “Backing up…” for ages</td><td>Old tool copying a whole data partition</td><td>Hold power for 10 s (the internal disk is only read), update the stick, run it again</td></tr>
+  <tr><td>“findstr is not recognized” then “Backup FAILED”</td><td>Old script; the backup itself usually finished</td><td>Check for <code>manifest.txt</code> in the backup folder. Update the stick</td></tr>
+  <tr><td>“Press Enter to open the Rescue Kit” prompt</td><td>Older boot image</td><td>On a PC, double-click <code>patch-rescue-stick.cmd</code> with the stick plugged in</td></tr>
+  <tr><td>Windows shows an error once after a forced power-off, then starts</td><td>Windows checking itself after an unclean shutdown</td><td>Normal once. If it happens every time, photograph the message</td></tr>
+  <tr><td>Restore says it cannot open the disk</td><td>The disk is hidden again</td><td>Run gptfix first, then restore</td></tr>
+  <tr><td>Blue screen asking for a BitLocker recovery key</td><td>Encryption noticed boot changes</td><td>Enter the key from <code>aka.ms/myrecoverykey</code></td></tr>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="keep">10. What to keep safe</h2>
+<ul>
+  <li>☐ Your <code>pz13-image-…</code> backup folder, in two places (for example, a USB stick and cloud storage).</li>
+  <li>☐ Your <strong>BitLocker recovery key</strong>, written down.</li>
+  <li>☐ A copy of the files on any extra data drive (backups do not include it).</li>
+  <li>☐ The WoA Rescue Kit folder (about 9 GB), or at least the two prepared sticks, labelled.</li>
+  <li>☐ This guide.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="glossary">11. Glossary</h2>
+<div class="tbl"><table>
+  <tr><td><strong>ARM64</strong></td><td>The processor family used by Snapdragon PCs. Needs ARM64 versions of Windows and drivers.</td></tr>
+  <tr><td><strong>BIOS / UEFI</strong></td><td>The firmware that runs before Windows. UEFI is the modern kind; “BIOS” is the everyday name for its settings screen.</td></tr>
+  <tr><td><strong>Secure Boot</strong></td><td>A UEFI setting that only starts programs signed by trusted keys.</td></tr>
+  <tr><td><strong>GPT</strong></td><td>GUID Partition Table: the list of partitions at the start of the disk, with a second copy at the end.</td></tr>
+  <tr><td><strong>Partition</strong></td><td>A slice of the disk. Each has a start, a size, a type (GUID) and attributes.</td></tr>
+  <tr><td><strong>LBA / sector</strong></td><td>A 512-byte block of the disk, numbered from 0. 1 MiB = 2,048 sectors.</td></tr>
+  <tr><td><strong>MiB / GiB</strong></td><td>1 MiB = 1,048,576 bytes; 1 GiB = 1,024 MiB. Disk makers' “GB” are 1,000,000,000 bytes.</td></tr>
+  <tr><td><strong>ESP</strong></td><td>EFI system partition: the boot partition (section 6).</td></tr>
+  <tr><td><strong>MSR</strong></td><td>Microsoft Reserved partition: a small empty area Windows keeps for itself.</td></tr>
+  <tr><td><strong>WinPE</strong></td><td>Windows Preinstallation Environment: a mini-Windows that runs from a USB stick.</td></tr>
+  <tr><td><strong>WIM</strong></td><td>Windows Imaging format: a compressed file holding a whole Windows installation (<code>install.wim</code>, <code>boot.wim</code>, <code>windows.wim</code>).</td></tr>
+  <tr><td><strong>DISM</strong></td><td>Microsoft's tool for capturing and applying WIM images.</td></tr>
+  <tr><td><strong>NHLOS</strong></td><td>Qualcomm's term for firmware that does not run on the main operating system (“non-high-level OS”).</td></tr>
+  <tr><td><strong>partmgr</strong></td><td>Windows' partition manager driver: the part that hides the disk.</td></tr>
+</table></div>
+
+<p class="muted" style="margin-top:3em">WoA Rescue Kit guide · ASUS ProArt PZ13 (Snapdragon X, ARM64) · facts verified on a real device,
+7–8 November 2026. Use at your own risk; always keep a backup.</p>
+
+</main>
+</body>
+</html>

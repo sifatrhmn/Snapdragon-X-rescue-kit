@@ -1,0 +1,21 @@
+target/
+*.vhdx
+work/
+
+# Large third-party downloads (reverse-engineering reference material; keep local, not in git)
+MiniTool.Partition.Wizard/
+MyASUS_in_WinRE_For_USB/
+SOCPackage_forWebSite_Qualcomm/
+"Claude Code/"
+vm-results.bundle
+
+# Rescue-kit payloads: far too large for git (GitHub limit is 100 MB per file).
+*.wim
+kit/2-winpe-stick/
+# Disk backups made by the kit hold personal data; keep them on a portable drive.
+pz13-image-*/
+
+# Project memory: local notes with device identifiers; not for publication
+brain.md
+.superpowers/
+*.jpg
